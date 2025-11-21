@@ -1,106 +1,121 @@
 import streamlit as st
-import data  # Подключаем наш файл данных
+import data_translations as dt
+import data_dishes as dd
+import data_locations as dl
 
 # --- CONFIG & STYLE ---
 st.set_page_config(
     page_title="Sheker: Travel Safe", 
     page_icon="🍬", 
     layout="wide", 
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# Убираем лишние элементы Streamlit и стилизуем кнопки
+# --- STATE MANAGEMENT (Инициализация) ---
+if 'lang_code' not in st.session_state:
+    st.session_state.lang_code = "RU"
+
+if 'user_allergens' not in st.session_state:
+    st.session_state.user_allergens = [] 
+
+# ЗАГРУЖАЕМ ЯЗЫК СРАЗУ
+lang_code = st.session_state.lang_code
+T = dt.TRANSLATIONS[lang_code]
+
+# Стиль
 hide_st_style = """
 <style>
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
-/* header {visibility: hidden;} */
-div[data-testid="stDialog"] {
-    width: 90vw; 
+
+/* --- ГЛАВНОЕ ИСПРАВЛЕНИЕ Z-INDEX --- */
+
+/* 1. Сайдбар и Хедер: Используем универсальный селектор (без привязки к section или header) */
+[data-testid="stSidebar"] {
+    z-index: 1 !important; 
 }
+[data-testid="stHeader"] {
+    z-index: 1 !important;
+}
+
+/* 2. Исправление для нативного st.dialog */
+/* У новых диалогов Streamlit нет data-testid="stModal", они рендерятся как dialog */
+/* Мы полагаемся на то, что опустив сайдбар (z-index: 1), стандартная подложка диалога (обычно 1000+) его перекроет */
+
+/* Опционально: Стилизация самого окна диалога (белой карточки), если нужно */
+div[role="dialog"] {
+    border-radius: 20px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+}
+
+/* Остальные стили кнопок и карточек */
 .stButton>button {
     width: 100%;
     border-radius: 12px;
     font-weight: 600;
+    height: 3em; 
 }
 img {
     border-radius: 10px; 
+}
+
+/* Карточка приложения */
+.app-card {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 15px;
+    border: 1px solid #eee;
+    margin-bottom: 10px;
+    text-align: center;
+}
+@media (prefers-color-scheme: dark) {
+    .app-card {
+        background-color: #262730;
+        border: 1px solid #3d3d3d;
+    }
+}
+
+/* Центрирование вкладок */
+div[role="tablist"] {
+    justify-content: center;
+    gap: 10px;
+    display: flex;
+    width: 100%;
+}
+
+/* Стиль для блока SOS */
+div[data-testid="column"] {
+    display: flex;
+    flex-direction: column;
+    justify-content: center; 
 }
 </style>
 """
 st.markdown(hide_st_style, unsafe_allow_html=True)
 
-# --- STATE MANAGEMENT (Session State) ---
-# Проверяем, на какой странице находится пользователь.
-# Если 'page' нет в состоянии, ставим 'welcome' (Приветствие)
-if 'page' not in st.session_state:
-    st.session_state.page = 'welcome'
-
-# --- ФУНКЦИЯ: ПРИВЕТСТВЕННАЯ СТРАНИЦА ---
-def show_welcome_page():
-    # Выбор языка (нужен и тут, чтобы понять, что писать)
-    lang_code = st.selectbox(
-        "🌐 Language / Тіл / Язык",
-        ["RU", "KZ", "EN", "CN", "TR", "FR", "DE", "ES", "AR"],
-        index=0
-    )
-    T = data.TRANSLATIONS[lang_code]
-
-    st.title(f"👋 {T['welcome_title']}")
-    st.subheader(T['welcome_subtitle'])
-    st.divider()
-
-    # Блок 2GIS
-    c1, c2 = st.columns([1, 3])
-    with c1:
-        st.image("https://static.tildacdn.com/tild3535-3834-4663-b231-646261323434/2gis-seeklogo1.png", width=100)
-    with c2:
-        st.markdown("### 2GIS")
-        st.write(T['app_2gis_desc'])
-        
-        # Ссылки на магазины (Кнопки-картинки через HTML для красоты)
-        st.markdown("""
-        <a href="https://apps.apple.com/kz/app/2gis-offline-map-navigation/id481627348" target="_blank">
-            <img src="https://camo.githubusercontent.com/6892bc6340e1f85af34c64debae91f72db447bc433157d2f0b9900cf5b827e86/68747470733a2f2f6b69642d7374726565742e72752f77702d636f6e74656e742f75706c6f6164732f323032302f30332f61707073746f72652e706e67" width="140">
-        </a>
-        &nbsp;&nbsp;
-        <a href="https://play.google.com/store/apps/details?id=ru.dublgis.dgismobile" target="_blank">
-            <img src="https://abc-medicina.com/wp-content/uploads/2025/04/icon_google_play.png" width="140">
-        </a>
-        """, unsafe_allow_html=True)
-
-    st.divider()
-
-    # Блок Yandex Go
-    c3, c4 = st.columns([1, 3])
-    with c3:
-        st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Yandex_Go_icon.svg/1200px-Yandex_Go_icon.svg.png", width=100)
-    with c4:
-        st.markdown("### Yandex Go")
-        st.write(T['app_yandex_desc'])
-        
-        st.markdown("""
-        <a href="https://apps.apple.com/us/app/yandex-go-taxi-and-delivery/id472650686" target="_blank">
-            <img src="https://camo.githubusercontent.com/6892bc6340e1f85af34c64debae91f72db447bc433157d2f0b9900cf5b827e86/68747470733a2f2f6b69642d7374726565742e72752f77702d636f6e74656e742f75706c6f6164732f323032302f30332f61707073746f72652e706e67" width="140">
-        </a>
-        &nbsp;&nbsp;
-        <a href="https://play.google.com/store/apps/details?id=ru.yandex.taxi&hl=ru" target="_blank">
-            <img src="https://abc-medicina.com/wp-content/uploads/2025/04/icon_google_play.png" width="140">
-        </a>
-        """, unsafe_allow_html=True)
-
-    st.divider()
-
-    # Кнопка "Начать"
-    # При нажатии меняем состояние на 'main' и перезагружаем страницу
-    if st.button(T['btn_start'], type="primary"):
-        st.session_state.page = 'main'
-        st.rerun()
-
+# --- ЛОГИКА: ОКНО ВЫБОРА ЯЗЫКА ---
+@st.dialog(T["lang_modal_title"])
+def show_language_selector():
+    st.write(T["lang_modal_text"])
+    
+    languages = {
+        "RU": "Русский",
+        "KZ": "Қазақша",
+        "EN": "English",
+        "CN": "中文",
+        "TR": "Türkçe"
+    }
+    
+    for code, label in languages.items():
+        if st.button(label, use_container_width=True, key=f"lang_btn_{code}"):
+            st.session_state.lang_code = code
+            st.rerun() 
 
 # --- ЛОГИКА: МОДАЛЬНОЕ ОКНО (КАРТОЧКА БЛЮДА) ---
 @st.dialog("🍽 Dish Details")
-def show_dish_details(dish, lang_code, T, user_allergens):
+def show_dish_details(dish, lang_code, T):
+    current_user_allergens = st.session_state.user_allergens 
+    
     st.image(dish['image'], use_container_width=True)
     
     d_name = dish['name'].get(lang_code, dish['name'].get("EN", dish['name'].get("RU")))
@@ -126,8 +141,8 @@ def show_dish_details(dish, lang_code, T, user_allergens):
     st.markdown(f"### {stars}")
     
     danger_list = [
-        data.ALLERGEN_TRANSLATIONS[alg].get(lang_code, alg) 
-        for alg in dish['allergens'] if alg in user_allergens
+        dt.ALLERGEN_TRANSLATIONS[alg].get(lang_code, alg) 
+        for alg in dish['allergens'] if alg in current_user_allergens
     ]
     
     if danger_list:
@@ -139,126 +154,171 @@ def show_dish_details(dish, lang_code, T, user_allergens):
     
     st.info(f"💡 {T['tip']} {d_tip}")
 
-# ==========================================
-# === ГЛАВНЫЙ ЛОГИЧЕСКИЙ БЛОК ===
-# ==========================================
+# --- HEADER ---
+col_spacer_left, col_title, col_lang_container = st.columns([1, 2, 1], vertical_alignment="center")
 
-if st.session_state.page == 'welcome':
-    show_welcome_page()
-
-else:
-    # --- ОСНОВНОЕ ПРИЛОЖЕНИЕ (SIDEBAR + TABS) ---
+with col_title:
+    title_html = f"""
+    <div style='text-align: center; margin-top: 0px;'>
+        <h1 style='margin: 0; font-size: 2.5rem;'>🍬 SHEKER</h1>
+    </div>
+    """
+    st.markdown(title_html, unsafe_allow_html=True)
     
-    # --- SIDEBAR ---
-    with st.sidebar:
-        st.image("https://emojigraph.org/media/apple/candy_1f36c.png", width=50)
-        st.title("SHEKER")
-        
-        lang_code = st.selectbox(
-            "🌐 Language / Тіл / Язык",
-            ["RU", "KZ", "EN", "CN", "TR", "FR", "DE", "ES", "AR"],
-            index=0
-        )
-        
-        T = data.TRANSLATIONS[lang_code]
-        
-        st.divider()
-        st.header(f"👤 {T['sidebar_title']}")
-        
-        allergen_keys = list(data.ALLERGEN_TRANSLATIONS.keys())
-        allergen_display = [data.ALLERGEN_TRANSLATIONS[k].get(lang_code, k) for k in allergen_keys]
-        
-        selected_indices = st.multiselect(
-            T['allergens_title'],
-            options=range(len(allergen_keys)),
-            format_func=lambda x: allergen_display[x]
-        )
-        user_allergens = [allergen_keys[i] for i in selected_indices]
+with col_lang_container:
+    # Кнопка языка справа
+    c_space, c_btn = st.columns([3, 1]) 
+    with c_btn:
+        if st.button(f"🌐 {lang_code}", key="lang_selector_btn"):
+            show_language_selector()
 
-    # --- MAIN SCREEN ---
-    st.title(f"🍬 Sheker: {T['title']}")
+# --- MAIN CONTENT (Tabs) ---
+tab_names = [T['tab_home'], T['tab_menu'], T['tab_places'], T['tab_passport'], T['tab_sos']]
+tabs = st.tabs(tab_names)
 
-    tab1, tab2, tab3, tab4 = st.tabs([T['tab_menu'], T['tab_places'], T['tab_passport'], T['tab_sos']])
-
-    # === TAB 1: БЛЮДА ===
-    with tab1:
-        st.subheader(f"🥘 {T['menu_title']}")
-        st.caption(T['menu_subtitle'])
-        cols = st.columns([1, 1, 1]) 
-        for i, dish in enumerate(data.DISHES):
-            with cols[i % 3]:
-                with st.container(border=True):
-                    st.image(dish['image'], use_container_width=True)
-                    d_name = dish['name'].get(lang_code, dish['name'].get("EN", dish['name'].get("RU")))
-                    st.markdown(f"**{d_name}**")
-                    if st.button("🔍 Info", key=f"btn_{dish['id']}"):
-                        show_dish_details(dish, lang_code, T, user_allergens)
-
-    # === TAB 2: МЕСТА (КАТАЛОГ ВМЕСТО КАРТЫ) ===
-    with tab2:
-        st.subheader(f"📍 {T['places_title']}")
-        st.caption(T['places_subtitle'])
-        
-        # Фильтр
-        show_types = st.multiselect(
-            T['map_filter'],
-            ["Food", "Safety", "Danger"],
-            default=["Food", "Safety", "Danger"],
-            format_func=lambda x: T['types'].get(x, x)
-        )
+# === TAB 0: ГЛАВНАЯ ===
+with tabs[0]:
+    st.header(f"👋 {T['home_welcome']}")
+    
+    col_info, col_apps = st.columns([2, 1], gap="large")
+    
+    with col_info:
+        st.markdown(f"### {T.get('home_header_shymkent', 'Shymkent')}")
+        st.markdown(T['home_desc_shymkent'])
         
         st.divider()
         
-        # Сетка карточек мест
-        place_cols = st.columns([1, 1]) # 2 колонки для мест
-        
-        visible_locations = [loc for loc in data.LOCATIONS if loc['type'] in show_types]
-        
-        for i, loc in enumerate(visible_locations):
-            with place_cols[i % 2]:
-                with st.container(border=True):
-                    # Иконка в зависимости от типа
-                    if loc['type'] == "Food": icon = "🍴"
-                    elif loc['type'] == "Safety": icon = "🛂"
-                    else: icon = "⚠️"
-                    
-                    loc_name = loc['name'].get(lang_code, loc['name'].get("EN", loc['name'].get("RU")))
-                    
-                    st.markdown(f"### {icon} {loc_name}")
-                    st.write(loc['desc'])
-                    
-                    # Кнопка-ссылка на 2GIS
-                    st.link_button(
-                        f"🌍 {T['open_2gis']}", 
-                        loc['2gis_link'], 
-                        type="primary" if loc['type'] == "Food" else "secondary"
-                    )
+        st.markdown(f"### {T.get('home_header_turkestan', 'Turkestan')}")
+        st.markdown(T['home_desc_turkestan'])
 
-    # === TAB 3: ПАСПОРТ ===
-    with tab3:
-        col_pass, col_qr = st.columns([2, 1])
-        with col_pass:
-            st.header(f"🛂 {T['passport_title']}")
-            st.info(T['passport_desc'])
-            if not user_allergens:
-                st.warning("⚠️ Please select allergens in the Sidebar first!")
-            else:
-                st.error(f"🛑 {T['passport_warning']}")
-                kz_text = "Сәлеметсіз бе! Маған көмек керек.\nМенде мына өнімдерге АЛЛЕРГИЯ бар:\n"
-                for alg in user_allergens:
-                    kz_word = data.ALLERGEN_TRANSLATIONS[alg].get("KZ", alg)
-                    kz_text += f"- 🚫 {kz_word.upper()}\n"
-                kz_text += "\nБұл өмірге қауіпті! Рақмет."
-                st.code(kz_text, language="text")
+    with col_apps:
+        with st.container(border=True):
+            st.subheader(T['apps_title'])
+            st.caption(T['apps_subtitle'])
+            
+            # 2GIS
+            st.image("https://blog.allo.ua/wp-content/uploads/V-2GIS-poyavilis-peshehodnye-marshruty-glavnoe-foto.jpg", use_container_width=True)
+            st.markdown("**2GIS**")
+            st.caption(T['app_2gis_desc'])
+            st.link_button("🍏 App Store", "https://apps.apple.com/kz/app/2gis-offline-map-navigation/id481627348", use_container_width=True)
+            st.link_button("🤖 Google Play", "https://play.google.com/store/apps/details?id=ru.dublgis.dgismobile", use_container_width=True)
+            
+            st.divider()
 
-    # === TAB 4: SOS ===
-    with tab4:
-        st.header(f"🚨 {T['sos_title']}")
-        c1, c2 = st.columns(2)
+            # Yandex Go
+            st.image("img/YandexGo.jpg", use_container_width=True)
+            st.markdown("**Yandex Go**")
+            st.caption(T['app_yandex_desc'])
+            st.link_button("🍏 App Store", "https://apps.apple.com/us/app/yandex-go-taxi-and-delivery/id472650686", use_container_width=True)
+            st.link_button("🤖 Google Play", "https://play.google.com/store/apps/details?id=com.yandex.taxi", use_container_width=True)
+
+
+# === TAB 1: БЛЮДА ===
+with tabs[1]:
+    st.subheader(f"🥘 {T['menu_title']}")
+    st.caption(T['menu_subtitle'])
+    cols = st.columns([1, 1, 1]) 
+    for i, dish in enumerate(dd.DISHES):
+        with cols[i % 3]:
+            with st.container(border=True):
+                st.image(dish['image'], use_container_width=True)
+                d_name = dish['name'].get(lang_code, dish['name'].get("EN", dish['name'].get("RU")))
+                st.markdown(f"**{d_name}**")
+                if st.button("🔍 Info", key=f"btn_{dish['id']}"):
+                    show_dish_details(dish, lang_code, T)
+
+# === TAB 2: МЕСТА ===
+with tabs[2]:
+    st.subheader(f"📍 {T['places_title']}")
+    st.caption(T['places_subtitle'])
+    
+    show_types = st.multiselect(
+        T['map_filter'],
+        ["Food", "Safety", "Danger"],
+        default=["Food", "Safety", "Danger"],
+        format_func=lambda x: T['types'].get(x, x),
+        placeholder=T['choose_options']
+    )
+    
+    st.divider()
+    
+    place_cols = st.columns([1, 1])
+    visible_locations = [loc for loc in dl.LOCATIONS if loc['type'] in show_types]
+    
+    for i, loc in enumerate(visible_locations):
+        with place_cols[i % 2]:
+            with st.container(border=True):
+                if loc['type'] == "Food": icon = "🍴"
+                elif loc['type'] == "Safety": icon = "🛂"
+                else: icon = "⚠️"
+                
+                loc_name = loc['name'].get(lang_code, loc['name'].get("EN", loc['name'].get("RU")))
+                st.markdown(f"### {icon} {loc_name}")
+                
+                if isinstance(loc['desc'], dict):
+                    loc_desc = loc['desc'].get(lang_code, loc['desc'].get("EN", loc['desc'].get("RU")))
+                else:
+                    loc_desc = loc['desc']
+                
+                st.write(loc_desc)
+                
+                st.link_button(
+                    f"🌍 {T['open_2gis']}", 
+                    loc['2gis_link'], 
+                    type="primary" if loc['type'] == "Food" else "secondary"
+                )
+
+# === TAB 3: ПАСПОРТ ===
+with tabs[3]:
+    st.header(f"🛂 {T['passport_title']}")
+    
+    allergen_keys = list(dt.ALLERGEN_TRANSLATIONS.keys())
+    allergen_display = [dt.ALLERGEN_TRANSLATIONS[k].get(lang_code, k) for k in allergen_keys]
+    
+    selected_indices = st.multiselect(
+        T['allergens_title'],
+        options=range(len(allergen_keys)),
+        format_func=lambda x: allergen_display[x],
+        placeholder=T['choose_options'],
+        key="passport_allergens"
+    )
+    st.session_state.user_allergens = [allergen_keys[i] for i in selected_indices]
+    
+    st.divider()
+    
+    col_pass, col_qr = st.columns([2, 1])
+    with col_pass:
+        st.info(T['passport_desc'])
+        
+        if not st.session_state.user_allergens:
+            st.warning(T['passport_empty'])
+        else:
+            st.error(f"🛑 {T['passport_warning']}")
+            
+            kz_text = "Сәлеметсіз бе! Маған көмек керек.\nМенде мына өнімдерге АЛЛЕРГИЯ бар:\n"
+            for alg in st.session_state.user_allergens:
+                kz_word = dt.ALLERGEN_TRANSLATIONS[alg].get("KZ", alg)
+                kz_text += f"- 🚫 {kz_word.upper()}\n"
+            kz_text += "\nБұл өмірге қауіпті! Рақмет."
+            
+            st.code(kz_text, language="text")
+
+# === TAB 4: SOS ===
+with tabs[4]:
+    st.header(f"🚨 {T['sos_title']}")
+    
+    with st.container(border=True):
+        c1, c2 = st.columns([1, 3], vertical_alignment="center")
         with c1:
-            st.link_button(f"💊 {T['sos_btn']}", "https://2gis.kz/shymkent/search/Аптека/rubricId/372", type="primary")
-            st.write("")
-            st.link_button(f"🚓 {T['police_btn']}", "https://2gis.kz/shymkent/search/Полиция", type="secondary")
+            st.metric(T.get("call_ambulance", "Ambulance"), "103")
         with c2:
-            st.metric(T['call_ambulance'], "103")
-            st.metric(T['call_police'], "102")
+            st.write(f"**{T.get('sos_pharmacy', 'Pharmacy')}**")
+            st.link_button(f"💊 {T['sos_btn_pharmacy']}", "https://2gis.kz/shymkent/search/Аптека/rubricId/372", type="primary", use_container_width=True)
+            
+    with st.container(border=True):
+        c3, c4 = st.columns([1, 3], vertical_alignment="center")
+        with c3:
+            st.metric(T.get("call_police", "Police"), "102")
+        with c4:
+            st.write(f"**{T.get('sos_police', 'Police')}**")
+            st.link_button(f"🚓 {T['sos_btn_police']}", "https://2gis.kz/shymkent/search/Полиция", type="secondary", use_container_width=True)
